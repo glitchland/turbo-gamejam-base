@@ -1,135 +1,187 @@
-# Turbo Screen Manager System
+# GameJam Base - Turbo + Shipyard ECS & Screen Management
 
-This is a flexible, modular screen management system for Turbo-Genesis-SDK games. It provides a stack-based approach to managing game screens, with support for transitions, overlays, and screen-specific behaviors.
+This repository provides a flexible and modular template for Turbo Genesis SDK-based games, utilizing Shipyard ECS (Entity Component System) and a neat screen management system. The structure supports clean and scalable game development.
+
+## Project Structure
+
+- **ECS (Entity Component System)**: Implements modular entity behaviors and logic.
+- **Screen Manager**: Provides a stack-based approach to manage different game screens (menus, gameplay, overlays).
 
 ## Features
 
-- **Stack-based screen management**: Push, pop, and replace screens
-- **Screen lifecycle events**: Initialize, activate, deactivate
-- **Support for translucent screens**: Create overlay screens like pause menus
-- **Type-safe screen identification**: Use downcasting to identify screen types
-- **Clean separation of concerns**: Each screen manages its own state and rendering
+- **Entity Component System** (using Shipyard)
+  - Define entities with custom components.
+  - Systems to update entity logic (e.g., movement, bouncing, rendering).
+- **Screen Management** (custom stack based state machine)
+  - Push, pop, replace screens easily.
+  - Lifecycle hooks (`init`, `update`, `render`, `on_suspend`, `on_resume`).
+- **Clean API**
+  - Easily readable and extendable Rust code structure.
 
-## How to Use
+---
 
-### 1. Create Custom Screen Types
+## Getting Started
 
-Create custom screens by implementing the `GameScreen` trait:
+### Setup
+
+Clone and run:
+
+```bash
+cargo build
+cargo run
+```
+
+### Example Usage
+
+#### Creating an Entity with Components
 
 ```rust
-use crate::managers::GameScreen;
-use std::any::Any;
+// Create a new ECS entity
+let entity = ecs_manager.create_entity();
 
-pub struct MyCustomScreen {
-    // Your screen-specific state here
+// Add components to the entity
+ecs_manager.add_components(entity, (
+    Position { x: 50.0, y: 50.0 },
+    Velocity { x: 1.5, y: 0.5 },
+    Enemy { color: 0xff0000ff, health: 100, speed: 2, size: 5 },
+));
+```
+
+#### Running Systems
+
+Systems are modular functions executing entity logic. Example from main game loop:
+
+```rust
+state.ecs_manager.run(|world| {
+    world.run(movement_system);
+    world.run_with_data(bounce_system, (canvas_width, canvas_height));
+    world.run(debug_system);
+    world.run(render_enemy_system);
+});
+```
+
+#### Screen Management
+
+Push, pop, or replace screens during gameplay.
+
+```rust
+// Push new screen
+state.screen_manager.push_screen(ScreenVariant::Menu(MenuScreen::new()));
+
+// Pop the current screen
+state.screen_manager.pop_screen();
+
+// Replace current screen with a new one
+state.screen_manager.change_screen(ScreenVariant::Game(GameScreen::new()));
+```
+
+---
+
+## Components Overview
+
+- `Position`: Stores x, y coordinates.
+- `Velocity`: Stores movement speed along x, y axes.
+- `Enemy`: Stores attributes for enemy entities (health, speed, size, color).
+
+**Example:**
+
+```rust
+#[derive(Component, Clone)]
+pub struct Position {
+    pub x: f32,
+    pub y: f32,
 }
+```
 
-impl GameScreen for MyCustomScreen {
+---
+
+## Systems Overview
+
+- `movement_system`: Updates positions based on velocities.
+- `bounce_system`: Bounces entities off canvas boundaries.
+- `debug_system`: Logs entity positions for debugging.
+- `render_enemy_system`: Draws enemy entities.
+
+**Example: Bounce System**
+
+```rust
+pub fn bounce_system(
+    (canvas_width, canvas_height): (f32, f32),
+    mut positions: ViewMut<Position>, 
+    mut velocities: ViewMut<Velocity>
+) {
+    for (pos, vel) in (&mut positions, &mut velocities).iter() {
+        if pos.x <= 0.0 || pos.x >= canvas_width {
+            vel.x *= -1.0;
+            pos.x = pos.x.clamp(0.0, canvas_width);
+        }
+        if pos.y <= 0.0 || pos.y >= canvas_height {
+            vel.y *= -1.0;
+            pos.y = pos.y.clamp(0.0, canvas_height);
+        }
+    }
+}
+```
+
+---
+
+## Screen Management Overview
+
+Manage game states easily with screen stack.
+
+- **Lifecycle methods**: `init`, `handle_input`, `update`, `render`, `on_suspend`, `on_resume`.
+- **Screen stack management**: `push_screen`, `pop_screen`, `change_screen`, `set_screen`.
+
+**Example: Defining a Screen**
+
+```rust
+impl Screen for GameScreen {
     fn init(&mut self) {
-        // Initialize resources when screen is first created
+        log!("Game screen initialized");
     }
-    
-    fn update(&mut self) {
-        // Update screen logic
+
+    fn update(&mut self, _dt: f32) {
+        log!("Game screen updated");
     }
-    
-    fn draw(&self) {
-        // Draw screen content
+
+    fn render(&self) {
+        log!("Rendering game screen");
     }
-    
-    fn activated(&mut self) {
-        // Called when screen becomes active (top of stack)
+
+    fn on_suspend(&mut self) {
+        self.is_active = false;
     }
-    
-    fn deactivated(&mut self) {
-        // Called when screen is no longer active
+
+    fn on_resume(&mut self) {
+        self.is_active = true;
     }
-    
-    fn is_translucent(&self) -> bool {
-        // Return true if screens behind this one should still be visible
-        false
-    }
-    
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
+
+    fn is_active(&self) -> bool {
+        self.is_active
     }
 }
 ```
 
-### 2. Initialize the Screen Manager
+---
 
-In your game's init block:
+## Extending the Project
 
-```rust
-turbo::init! {
-    struct GameState {
-        screen_manager: ScreenManager,
-    } = {
-        // Create screen manager and add initial screen
-        let mut screen_manager = ScreenManager::new();
-        screen_manager.push_screen(Box::new(TitleScreen::new()));
-        
-        Self {
-            screen_manager,
-        }
-    }
-}
-```
+You can easily extend this setup by:
 
-### 3. Update and Draw in the Game Loop
+- Adding new systems to handle specific game logic.
+- Defining additional components and screens.
+- Creating complex interactions between entities and game states.
 
-In your game loop:
+---
 
-```rust
-turbo::go! {
-    let mut state = GameState::load();
-    
-    // Handle screen-specific transitions
-    if let Some(active_screen) = state.screen_manager.active_screen() {
-        // Use downcast_ref to identify screen type and handle transitions
-        if let Some(title_screen) = active_screen.as_any().downcast_ref::<TitleScreen>() {
-            // Handle title screen transitions
-        }
-        else if let Some(game_screen) = active_screen.as_any().downcast_ref::<GameScreen>() {
-            // Handle gameplay transitions
-        }
-    }
-    
-    // Update and draw all visible screens
-    state.screen_manager.update();
-    state.screen_manager.draw();
-    
-    state.save();
-}
-```
+## Dependencies
 
-### 4. Screen Transitions
+- **Shipyard**: ECS framework for Rust [docs](https://docs.rs/shipyard/latest/shipyard/index.html).
+- **Turbo Genesis SDK**: A fantastic framework for writing games fast. [docs](https://docs.rs/turbo-genesis-sdk/2.1.0/turbo_genesis_sdk/index.html)
+- **once_cell**: For thread-safe initialization. [docs](https://docs.rs/once_cell/1.18.0/once_cell/index.html)
 
-Use these methods to manage screens:
+---
 
-- `push_screen(screen)`: Add a new screen on top (e.g., pause menu)
-- `pop_screen()`: Remove the top screen (e.g., resume game)
-- `replace_screen(screen)`: Replace top screen with a new one (e.g., change levels)
+## License
 
-## Example Screens
-
-The codebase includes these example screens:
-
-- **TitleScreen**: Main menu screen
-- **GameScreen**: Basic gameplay screen with player movement
-- **PauseScreen**: Translucent overlay with a simple menu
-- **GameOverScreen**: End game screen with score display
-
-## Extending the System
-
-You can extend this system by:
-
-- Creating new screen types
-- Adding transitions between screens
-- Implementing screen-specific input handlers
-- Creating reusable UI components for screens
-- Adding animations during screen transitions 
+This project template is provided under the MIT License. Feel free to use and adapt it to your project's needs.
