@@ -1,4 +1,4 @@
-# GameJam Base - Turbo + Shipyard ECS & Screen Management
+# Turbo + Shipyard ECS & Screen Management Example
 
 This repository provides a flexible and modular template for Turbo Genesis SDK-based games, utilizing Shipyard ECS (Entity Component System) and a neat screen management system. The structure supports clean and scalable game development.
 
